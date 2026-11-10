@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<!-- iPad: "Add to Home Screen" opens it full screen like an app -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Look &amp; Find">
+<meta name="theme-color" content="#3a3a3a">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%233a3a3a'/%3E%3Crect x='30' y='30' width='120' height='120' rx='18' fill='%23000' stroke='%23FFD400' stroke-width='10'/%3E%3Ccircle cx='90' cy='90' r='28' fill='%2300E5FF'/%3E%3Ccircle cx='90' cy='90' r='12' fill='%23000'/%3E%3C/svg%3E">
+<title>Look &amp; Find – Gaze Object Game</title>
+<style>
+  :root { --bg:#3a3a3a; --hi:#FFD400; --fg:#ffffff; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif; overflow:hidden; user-select:none;
+    -webkit-user-select:none; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
+    touch-action:none; overscroll-behavior:none; }
+  #menu { overflow:auto; touch-action:pan-y; }
+  body.nocursor, body.nocursor * { cursor:none !important; }
+
+  #counter { position:fixed; top:18px; left:50%; transform:translateX(-50%);
+    font-size:72px; font-weight:800; letter-spacing:2px; color:#fff;
+    text-shadow:0 0 0 #000, 3px 3px 0 #000; display:none; font-variant-numeric:tabular-nums; }
+  #message { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    font-size:40px; font-weight:700; color:#bdbdbd; text-align:center; pointer-events:none;
+    transition:opacity .4s; }
+  #message.big { color:var(--hi); font-size:64px; text-shadow:3px 3px 0 #000; }
+
+  .tile { position:fixed; background:#000; border:solid var(--hi); border-radius:14%;
+    transition:opacity .8s ease, transform .8s ease, left .8s ease-in-out, top .8s ease-in-out;
+    will-change:opacity,transform,left,top; }
+  .tile canvas { position:absolute; left:7%; top:7%; width:86%; height:86%; }
+  .tile img.photo { position:absolute; left:5%; top:5%; width:90%; height:90%; object-fit:contain;
+    border-radius:9%; filter:contrast(1.12) saturate(1.25); pointer-events:none; -webkit-user-drag:none; }
+  #lib { margin:14px 0 4px; padding:12px 14px; border:1px solid #555; border-radius:12px; background:#232323; }
+  #lib b { color:var(--hi); }
+  #libStatus { font-size:15px; color:#ddd; margin:4px 0 10px; }
+  #lib button { font-size:15px; padding:8px 12px; border-radius:8px; border:1px solid #777; background:#1e1e1e; color:#fff; cursor:pointer; margin-right:8px; }
+  .tile.fade { opacity:0; transform:scale(1.35) rotate(8deg); }
+  .tile.gone { opacity:0; transform:scale(.4); transition:opacity .45s ease, transform .45s ease; }
+  .tile.pulse { animation:pulse .7s ease-in-out infinite alternate; }
+  @keyframes pulse { from { transform:scale(1); } to { transform:scale(1.12); } }
+  .tile svg { position:absolute; left:-14%; top:-14%; width:128%; height:128%; pointer-events:none; overflow:visible; transition:opacity .3s; }
+  .tile svg circle { fill:none; stroke:#00E5FF; stroke-linecap:round; transform:rotate(-90deg); transform-origin:50% 50%; }
+  #counter.win { color:var(--hi); }
+
+  #fx { position:fixed; inset:0; pointer-events:none; }
+  #dot { position:fixed; width:26px; height:26px; margin:-13px 0 0 -13px; border-radius:50%;
+    border:3px solid #00E5FF; background:rgba(0,229,255,.25); pointer-events:none; display:none; z-index:5; }
+
+  #micBtn { font-size:22px; padding:4px 14px !important; }
+  #micBtn.need { background:#FFD400 !important; color:#000 !important; border-color:#FFD400 !important; }
+  #bar { position:fixed; left:0; right:0; bottom:0; height:calc(56px + env(safe-area-inset-bottom)); padding-bottom:env(safe-area-inset-bottom) !important; display:flex; align-items:center; gap:14px;
+    padding:0 16px; background:rgba(0,0,0,.35); font-size:16px; color:#cfcfcf; z-index:6; }
+  #mic { width:14px; height:14px; border-radius:50%; background:#777; flex:none; }
+  #mic.on { background:#34C759; box-shadow:0 0 10px #34C759; }
+  #mic.err { background:#FF3B30; }
+  #heard { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #typed { width:220px; padding:7px 10px; border-radius:8px; border:1px solid #666; background:#2a2a2a; color:#fff; font-size:15px; }
+  #bar button { padding:7px 12px; border-radius:8px; border:1px solid #666; background:#2a2a2a; color:#fff; font-size:15px; cursor:pointer; }
+
+  #menu { position:fixed; inset:0; background:var(--bg); display:flex; align-items:flex-start; justify-content:center; padding:16px; z-index:10; }
+  #menu .card { margin:auto 0; width:min(640px,92vw); background:#2b2b2b; border:3px solid var(--hi); border-radius:18px; padding:28px 32px; }
+  #menu h1 { margin:0 0 6px; color:var(--hi); font-size:34px; }
+  #menu p { margin:6px 0 18px; color:#ddd; line-height:1.45; font-size:17px; }
+  #menu label { display:flex; justify-content:space-between; align-items:center; gap:16px; margin:10px 0; font-size:17px; }
+  #menu select, #menu input[type=number] { font-size:16px; padding:6px 8px; border-radius:8px; background:#1e1e1e; color:#fff; border:1px solid #777; min-width:200px; }
+  #menu input[type=checkbox] { width:22px; height:22px; }
+  #start { margin-top:20px; width:100%; padding:16px; font-size:24px; font-weight:800; border:none; border-radius:12px;
+    background:var(--hi); color:#000; cursor:pointer; }
+  #warn { color:#FF8A80; font-size:15px; margin-top:12px; min-height:1em; }
+  .small { font-size:14px !important; color:#aaa !important; }
+</style>
+</head>
+<body>
+
+<div id="menu">
+  <div class="card">
+    <h1>Look &amp; Find</h1>
+    <p>Say two objects, like “<b>dog or cat</b>”. The first appears on the left, the second on the right, and a counter starts.
+       Look at the one you choose until the ring fills – it moves to the center and bursts into fireworks.
+       (Saying just one object shows it in the center.) The photo whose <b>file name</b> best matches your words is shown;
+       if no photo matches, a built-in picture is used.</p>
+    <label>Image size
+      <select id="sizeMode">
+        <option value="area">1/10 of the screen area</option>
+        <option value="width">1/10 of the screen width</option>
+      </select>
+    </label>
+    <label>Look time needed (seconds)
+      <input id="dwell" type="number" min="0.3" max="5" step="0.1" value="2">
+    </label>
+    <div id="lib">
+      <b>Photo library</b>
+      <div id="libStatus">Looking for photos…</div>
+      <button id="libReload" type="button">↻ Reload photos</button>
+      <button id="libPick" type="button">📁 Use photos from this device</button>
+      <input id="libFiles" type="file" accept="image/*" multiple hidden>
+    </div>
+    <label>Hide the mouse cursor <input id="hideCursor" type="checkbox"></label>
+    <label>Show gaze dot <input id="showDot" type="checkbox"></label>
+    <button id="start">Start</button>
+    <div id="warn"></div>
+    <p class="small">Gaze is read from the pointer position, so your eye-tracking software must move the pointer
+       (on PC: GazeCursor; on iPad: Settings → Accessibility → Eye Tracking, or an eye tracker via AssistiveTouch).
+       A tap on an object – including an iPad dwell tap – also chooses it. If listening stops, tap 🎤.
+       Press Esc or Menu to come back here.</p>
+  </div>
+</div>
+
+<div id="counter">0</div>
+<div id="message"></div>
+<canvas id="fx"></canvas>
+<div id="dot"></div>
+
+<div id="bar">
+  <button id="micBtn" title="Listen">🎤</button>
+  <div id="mic" title="Microphone"></div>
+  <div id="heard">Not listening</div>
+  <input id="typed" placeholder="…or type “dog or cat” + Enter">
+  <button id="menuBtn">Menu</button>
+</div>
+
+<script>
+"use strict";
+/* ---------------- Object dictionary ---------------- */
+const RAW = {
+ "🐶":"dog puppy","🐱":"cat kitten kitty","🐦":"bird","🐟":"fish","🐴":"horse","🐮":"cow","🐷":"pig","🐔":"chicken hen",
+ "🦆":"duck","🐰":"rabbit bunny","🐭":"mouse","🦁":"lion","🐯":"tiger","🐻":"bear","🐘":"elephant","🐵":"monkey",
+ "🦒":"giraffe","🦓":"zebra","🐸":"frog","🐢":"turtle tortoise","🐍":"snake","🦋":"butterfly","🐝":"bee","🕷️":"spider",
+ "🐌":"snail","🦉":"owl","🐧":"penguin","🐳":"whale","🐬":"dolphin","🐙":"octopus","🦀":"crab","🦖":"dinosaur dino",
+ "🐉":"dragon","🦄":"unicorn","🐑":"sheep lamb","🐐":"goat","🦊":"fox","🐺":"wolf","🐼":"panda","🐨":"koala",
+ "🦘":"kangaroo","🐫":"camel","🦔":"hedgehog","🦇":"bat","🦈":"shark","🐞":"ladybug","🐜":"ant","🪱":"worm",
+ "🐊":"crocodile alligator","🦜":"parrot","🐿️":"squirrel","🦩":"flamingo",
+ "🍎":"apple","🍌":"banana","🍊":"orange","🍇":"grape grapes","🍓":"strawberry","🍉":"watermelon","🍍":"pineapple",
+ "🍋":"lemon","🍒":"cherry","🍐":"pear","🍑":"peach","🥕":"carrot","🌽":"corn","🍅":"tomato","🥦":"broccoli",
+ "🥔":"potato","🍄":"mushroom","🍞":"bread","🧀":"cheese","🥚":"egg","🍕":"pizza","🍔":"hamburger burger",
+ "🌭":"hotdog|hot dog","🍟":"fries","🎂":"cake","🍪":"cookie","🍬":"candy sweet","🍭":"lollipop","🍫":"chocolate",
+ "🍦":"ice cream|icecream","🍩":"donut doughnut","🍿":"popcorn","🥛":"milk","💧":"water","☕":"coffee tea",
+ "🧃":"juice","🍯":"honey",
+ "⚽":"ball soccer football","🏀":"basketball","🚗":"car","🚌":"bus","🚚":"truck","🚆":"train","✈️":"airplane plane",
+ "🚀":"rocket","⛵":"boat ship sailboat","🚲":"bicycle bike","🏍️":"motorcycle motorbike","🚁":"helicopter",
+ "🚒":"firetruck|fire truck","🚓":"police|police car","🛸":"ufo|flying saucer","🏠":"house home","🏰":"castle",
+ "🌳":"tree","🌸":"flower","🌻":"sunflower","🍀":"clover","🎃":"pumpkin","☀️":"sun","🌙":"moon","⭐":"star",
+ "☁️":"cloud","🌧️":"rain","🌈":"rainbow","❄️":"snow snowflake","⛄":"snowman","🔥":"fire","⚡":"lightning thunder",
+ "❤️":"heart love","📖":"book","✏️":"pencil pen","📱":"phone telephone cellphone","💻":"computer laptop",
+ "📺":"television tv","⏰":"clock alarm","🔑":"key","💡":"lamp light lightbulb","🪑":"chair","🛏️":"bed","🚪":"door",
+ "☂️":"umbrella","🎩":"hat","👟":"shoe shoes sneaker","👕":"shirt tshirt","👓":"glasses","🎁":"gift present",
+ "🎈":"balloon","🎸":"guitar","🥁":"drum","🎹":"piano keyboard","🔔":"bell","✂️":"scissors","🔨":"hammer",
+ "🪥":"toothbrush","🥄":"spoon","🥤":"cup glass","🧸":"teddy|teddy bear","🤖":"robot","👻":"ghost","👑":"crown",
+ "🪁":"kite","🧩":"puzzle","👶":"baby","✋":"hand","👁️":"eye","🦷":"tooth teeth"
+};
+function norm(s){ return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"")
+  .replace(/[-_]/g," ").replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim(); }
+const DICT = new Map();          // phrase -> emoji
+let MAXW = 1;
+for (const [emo, list] of Object.entries(RAW)) {
+  const items = list.includes("|") ? list.split("|") : list.split(" ");
+  for (const it of items) { const k = norm(it); if (!k) continue;
+    if (!DICT.has(k)) DICT.set(k, emo); MAXW = Math.max(MAXW, k.split(" ").length); }
+}
+function lookupWord(w){
+  if (DICT.has(w)) return DICT.get(w);
+  if (w.length > 4 && w.endsWith("es") && DICT.has(w.slice(0,-2))) return DICT.get(w.slice(0,-2));
+  if (w.length > 3 && w.endsWith("s") && DICT.has(w.slice(0,-1))) return DICT.get(w.slice(0,-1));
+  return null;
+}
+/** All objects mentioned in the phrase, in spoken order, without repeats. Longer phrases win. */
+function findAll(text){
+  const t = norm(text).split(" ").filter(Boolean), out = [];
+  for (let i = 0; i < t.length; i++) {
+    for (let n = Math.min(MAXW, t.length - i); n >= 1; n--) {
+      const phrase = t.slice(i, i+n).join(" ");
+      const emo = n === 1 ? lookupWord(phrase) : DICT.get(phrase);
+      if (emo) { if (!out.some(o => o.emoji === emo)) out.push({ emoji: emo, name: phrase }); i += n-1; break; }
+    }
+  }
+  return out;
+}
+/* ---------------- Photo library ----------------
+   Photos live in a folder called "photos". Their FILE NAMES describe what is in them,
+   e.g. photos/dog.jpg, photos/dog_and_cat_on_sofa.jpg, photos/animals/red-bird.png
+   Every word of the name (and of sub-folder names) can be matched. */
+const IMG_RE = /\.(jpe?g|png|gif|webp|avif|bmp)$/i;
+const STOP = new Set(("a an the some any this that these those one ones or and i im id want wanna would like please " +
+  "show me see look at my your our to of for with in on is it its which choose pick between let lets maybe um uh " +
+  "okay ok can could give get have has picture pictures photo photos image images img dsc copy final new").split(" "));
+let LIB = [], libBlobUrls = [];
+const memo = new Map();
+function tokensOf(str){
+  return str.replace(/\.[a-z0-9]+$/i, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^a-z]+/)
+    .filter(w => w.length > 1 && !STOP.has(w));
+}
+function addPhoto(src, path){
+  LIB.push({ src, name: path.split("/").pop(), tokens: tokensOf(path.replace(/^photos\//i, "")) });
+}
+function stem(w){
+  if (w.length > 4 && w.endsWith("ies")) return w.slice(0, -3) + "y";
+  if (w.length > 4 && /(ches|shes|xes|sses|zes|oes)$/.test(w)) return w.slice(0, -2);
+  if (w.length > 3 && w.endsWith("s") && !w.endsWith("ss")) return w.slice(0, -1);
+  return w;
+}
+function within1(a, b){        // edit distance <= 1 (catches small mishearings / typos)
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, e = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++e > 1) return false;
+    if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
+  }
+  return e + (a.length - i) + (b.length - j) <= 1;
+}
+function wordScore(q, t, fuzzy){
+  if (q === t) return 3;
+  if (stem(q) === stem(t)) return 2.5;                       // dog / dogs, puppy / puppies
+  if (fuzzy && q.length >= 4 && t.length >= 4 && within1(stem(q), stem(t))) return 1.5;
+  return 0;
+}
+/** Score one photo against the spoken words. More matched words = better;
+    extra unmatched words in the file name lower the score a little, so "dog.jpg"
+    beats "dog_cat_bird_house.jpg" when you just say "dog". */
+function scorePhoto(qt, p, fuzzy){
+  let sum = 0; const used = new Set();
+  for (const q of qt) {
+    let best = 0, bi = -1;
+    p.tokens.forEach((t, i) => { const s = wordScore(q, t, fuzzy); if (s > best) { best = s; bi = i; } });
+    if (best > 0) { sum += best; used.add(bi); }
+  }
+  return sum > 0 ? 100 + sum - 0.15 * (p.tokens.length - used.size) : 0;
+}
+function bestPhoto(part, fuzzy, excludeKey){
+  const qt = tokensOf(part); if (!qt.length || !LIB.length) return null;
+  let best = 0, cands = [];
+  for (const p of LIB) {
+    if (p.src === excludeKey) continue;
+    const s = scorePhoto(qt, p, fuzzy); if (!s) continue;
+    if (s > best + 1e-6) { best = s; cands = [p]; } else if (Math.abs(s - best) <= 1e-6) cands.push(p);
+  }
+  if (!cands.length) return null;
+  const p = cands[Math.floor(Math.random() * cands.length)];   // equal matches: pick one at random
+  return { kind:"photo", src:p.src, name:p.name, key:p.src };
+}
+/** One spoken part ("the big dog") -> a photo, or an emoji if no photo matches. */
+function resolvePart(part, fuzzy, excludeKey){
+  const mk = part + "|" + fuzzy + "|" + (excludeKey || "");
+  if (memo.has(mk)) return memo.get(mk);                     // same words -> same photo while speaking
+  let r = bestPhoto(part, fuzzy, excludeKey);
+  if (!r) { const e = findAll(part)[0]; if (e && e.emoji !== excludeKey) r = { kind:"emoji", emoji:e.emoji, name:e.name, key:e.emoji }; }
+  memo.set(mk, r);
+  return r;
+}
+/** Decide what a phrase asks for: "X or Y" = two objects, otherwise one object.
+    Unfinished speech only triggers once "or" and both objects are clearly heard. */
+function parsePhrase(text, isFinal){
+  const parts = norm(text).split(/(?:^| )or(?: |$)/).map(s => s.trim());
+  if (parts.length >= 2) {
+    if (!parts[0] || !parts[1]) return null;
+    const a = resolvePart(parts[0], isFinal);
+    const b = a && resolvePart(parts[1], isFinal, a.key);
+    return a && b ? [a, b] : null;
+  }
+  if (isFinal && parts[0]) { const a = resolvePart(parts[0], true); return a ? [a] : null; }
+  return null;
+}
+function describe(o){ return o.kind === "photo" ? o.name : o.emoji; }
+
+/* ---------------- Settings ---------------- */
+const $ = id => document.getElementById(id);
+const S = { sizeMode:"area", dwell:2, hideCursor:false, showDot:false };
+try { Object.assign(S, JSON.parse(localStorage.getItem("lookfind2") || "{}")); } catch(e){}
+$("sizeMode").value = S.sizeMode;
+$("dwell").value = S.dwell; $("hideCursor").checked = S.hideCursor; $("showDot").checked = S.showDot;
+function readSettings(){
+  S.sizeMode = $("sizeMode").value;
+  S.dwell = Math.min(5, Math.max(0.3, parseFloat($("dwell").value) || 2));
+  S.hideCursor = $("hideCursor").checked; S.showDot = $("showDot").checked;
+  try { localStorage.setItem("lookfind2", JSON.stringify(S)); } catch(e){}
+}
+
+/* ---------------- Gaze (pointer) ---------------- */
+const gaze = { x:-9999, y:-9999 };
+window.addEventListener("pointermove", e => { gaze.x = e.clientX; gaze.y = e.clientY;
+  if (S.showDot) { const d = $("dot"); d.style.left = gaze.x+"px"; d.style.top = gaze.y+"px"; } }, {passive:true});
+window.addEventListener("mousemove", e => { gaze.x = e.clientX; gaze.y = e.clientY; }, {passive:true});
+
+/* ---------------- Audio ---------------- */
+let AC = null, NOISE = null;
+function initAudio(){
+  if (AC) { AC.resume && AC.resume(); return; }
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    NOISE = AC.createBuffer(1, AC.sampleRate * 1, AC.sampleRate);
+    const d = NOISE.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+  } catch(e) { AC = null; }
+}
+function funnySound(){
+  if (!AC) return; const t = AC.currentTime;
+  // slide whistle up
+  const o = AC.createOscillator(), g = AC.createGain(), lfo = AC.createOscillator(), lg = AC.createGain();
+  o.type = "sine"; o.frequency.setValueAtTime(450, t); o.frequency.exponentialRampToValueAtTime(1600, t+0.45);
+  lfo.frequency.value = 9; lg.gain.value = 35; lfo.connect(lg); lg.connect(o.frequency);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t+0.05); g.gain.exponentialRampToValueAtTime(0.0001, t+0.5);
+  o.connect(g); g.connect(AC.destination); o.start(t); lfo.start(t); o.stop(t+0.52); lfo.stop(t+0.52);
+  // boing down
+  const b = AC.createOscillator(), bg = AC.createGain(), bl = AC.createOscillator(), blg = AC.createGain();
+  const s = t + 0.5;
+  b.type = "triangle"; b.frequency.setValueAtTime(700, s); b.frequency.exponentialRampToValueAtTime(120, s+0.7);
+  bl.frequency.value = 22; blg.gain.value = 60; bl.connect(blg); blg.connect(b.frequency);
+  bg.gain.setValueAtTime(0.45, s); bg.gain.exponentialRampToValueAtTime(0.0001, s+0.75);
+  b.connect(bg); bg.connect(AC.destination); b.start(s); bl.start(s); b.stop(s+0.8); bl.stop(s+0.8);
+  // "ta-da" two notes
+  [[1.25,784],[1.42,1047]].forEach(([dt,f]) => {
+    const n = AC.createOscillator(), ng = AC.createGain(); n.type = "square"; n.frequency.value = f;
+    ng.gain.setValueAtTime(0.12, t+dt); ng.gain.exponentialRampToValueAtTime(0.0001, t+dt+(f>900?0.5:0.16));
+    n.connect(ng); ng.connect(AC.destination); n.start(t+dt); n.stop(t+dt+0.55);
+  });
+}
+function noiseHit(when, dur, freq, q, vol){
+  const src = AC.createBufferSource(); src.buffer = NOISE;
+  const f = AC.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = freq; f.Q.value = q;
+  const g = AC.createGain(); g.gain.setValueAtTime(vol, when); g.gain.exponentialRampToValueAtTime(0.0001, when+dur);
+  src.connect(f); f.connect(g); g.connect(AC.destination);
+  src.start(when, Math.random()*0.5); src.stop(when+dur+0.02);
+}
+function boomSound(){
+  if (!AC) return; const t = AC.currentTime;
+  noiseHit(t, 0.5, 300 + Math.random()*300, 0.8, 0.9);        // bang
+  for (let i=0;i<16;i++) noiseHit(t + 0.25 + Math.random()*0.9, 0.03, 2500 + Math.random()*3000, 3, 0.35); // crackles
+}
+
+/* ---------------- Fireworks ---------------- */
+const fx = $("fx"), cx = fx.getContext("2d");
+let rockets = [], sparks = [], fxRunning = false;
+const COLORS = ["#FF3B30","#FFD400","#34C759","#00E5FF","#FF2D95","#FFFFFF","#AF52DE","#FF9500"];
+function sizeCanvas(){ const r = window.devicePixelRatio || 1; fx.width = innerWidth*r; fx.height = innerHeight*r;
+  fx.style.width = innerWidth+"px"; fx.style.height = innerHeight+"px"; cx.setTransform(r,0,0,r,0,0); }
+function launchFireworks(fromX, fromY){
+  const H = innerHeight, W = innerWidth;
+  explode(fromX, fromY, true);
+  for (let i=0;i<7;i++) setTimeout(() => {
+    const x = W*(0.15 + Math.random()*0.7);
+    rockets.push({ x, y:H, px:x, py:H, vx:(Math.random()-0.5)*2, vy:-(H*0.018 + Math.random()*H*0.006),
+                   ty:H*(0.15 + Math.random()*0.35), c:COLORS[Math.floor(Math.random()*COLORS.length)] });
+  }, 300 + i*320);
+  if (!fxRunning) { fxRunning = true; requestAnimationFrame(fxLoop); }
+}
+function explode(x, y, big){
+  boomSound();
+  const n = big ? 110 : 80, base = Math.min(innerWidth, innerHeight)/110;
+  const c1 = COLORS[Math.floor(Math.random()*COLORS.length)], c2 = COLORS[Math.floor(Math.random()*COLORS.length)];
+  for (let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, sp = base*(0.6 + Math.random()*1.4);
+    sparks.push({ x, y, px:x, py:y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:1, decay:0.012 + Math.random()*0.012,
+                  c: Math.random()<0.5?c1:c2, tw: Math.random()<0.3 });
+  }
+}
+function fxLoop(){
+  cx.clearRect(0,0,innerWidth,innerHeight);
+  cx.globalCompositeOperation = "lighter"; cx.lineCap = "round";
+  for (let i=rockets.length-1;i>=0;i--){ const r = rockets[i];
+    r.px = r.x; r.py = r.y; r.x += r.vx; r.y += r.vy; r.vy *= 0.985;
+    cx.strokeStyle = r.c; cx.lineWidth = 4; cx.beginPath(); cx.moveTo(r.px, r.py+12); cx.lineTo(r.x, r.y); cx.stroke();
+    if (r.y <= r.ty || r.vy > -1) { explode(r.x, r.y, false); rockets.splice(i,1); } }
+  for (let i=sparks.length-1;i>=0;i--){ const p = sparks[i];
+    p.px = p.x; p.py = p.y; p.vx *= 0.975; p.vy = p.vy*0.975 + 0.12; p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+    if (p.life <= 0) { sparks.splice(i,1); continue; }
+    cx.globalAlpha = p.tw ? (Math.random()<0.5 ? p.life : 0.15) : p.life;
+    cx.strokeStyle = p.c; cx.lineWidth = 3.5; cx.beginPath(); cx.moveTo(p.px, p.py); cx.lineTo(p.x, p.y); cx.stroke(); }
+  cx.globalAlpha = 1; cx.globalCompositeOperation = "source-over";
+  if (rockets.length || sparks.length) requestAnimationFrame(fxLoop); else { fxRunning = false; cx.clearRect(0,0,innerWidth,innerHeight); }
+}
+
+/* ---------------- Object pictures (sharp, high-contrast) ---------------- */
+function drawObject(canvas, emoji, px){
+  const N = Math.max(64, Math.min(640, Math.round(px)));
+  canvas.width = canvas.height = N;
+  const pc = canvas.getContext("2d", { willReadFrequently:true });
+  pc.clearRect(0,0,N,N); pc.imageSmoothingQuality = "high";
+  pc.textAlign = "center"; pc.textBaseline = "middle";
+  pc.font = `${Math.round(N*0.84)}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
+  pc.fillText(emoji, N/2, N/2 + N*0.045);
+  try { // gentle saturation + contrast boost so colours pop on black
+    const im = pc.getImageData(0,0,N,N), d = im.data;
+    for (let i=0;i<d.length;i+=4){ if (!d[i+3]) continue;
+      const l = 0.3*d[i] + 0.59*d[i+1] + 0.11*d[i+2];
+      for (let k=0;k<3;k++){ let v = l + (d[i+k]-l)*1.4; v = (v-128)*1.15 + 132; d[i+k] = v<0?0:v>255?255:v; } }
+    pc.putImageData(im,0,0);
+  } catch(e){}
+}
+
+/* ---------------- Game state ---------------- */
+let state = "menu";            // menu | waiting | showing | celebrating
+let tiles = [], shownAt = 0, lastT = 0, currentKey = "", celebrateTimers = [];
+const counter = $("counter"), msg = $("message");
+const CIRC = 2*Math.PI*46;
+
+function tileSide(){ return S.sizeMode === "width" ? innerWidth/10 : Math.sqrt(innerWidth*innerHeight/10); }
+// Fixed slots: one object = center; two objects = left / right
+function slotCenter(index, count){
+  const y = innerHeight/2 + 20;
+  if (count === 1) return { x: innerWidth/2, y };
+  return { x: innerWidth * (index === 0 ? 0.25 : 0.75), y };
+}
+function setTilePos(t, c){ const s = tileSide();
+  t.el.style.width = t.el.style.height = s+"px";
+  t.el.style.left = (c.x - s/2)+"px"; t.el.style.top = (c.y - s/2)+"px";
+  t.el.style.borderWidth = Math.max(4, s*0.045)+"px"; }
+function makeTile(obj){
+  const el = document.createElement("div"); el.className = "tile";
+  el.innerHTML = '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" stroke-width="5"/></svg>';
+  let ready = Promise.resolve();
+  if (obj.kind === "photo") {
+    const img = new Image(); img.className = "photo"; img.alt = obj.name; img.draggable = false;
+    ready = new Promise(res => { img.onload = img.onerror = res; });
+    img.src = obj.src; el.prepend(img);
+  } else {
+    const cv = document.createElement("canvas"); el.prepend(cv);
+    drawObject(cv, obj.emoji, tileSide()*0.86*(window.devicePixelRatio||1));
+  }
+  const ring = el.querySelector("circle");
+  ring.style.strokeDasharray = CIRC; ring.style.strokeDashoffset = CIRC;
+  document.body.appendChild(el);
+  const t = { el, ring, obj, dwell:0, out:0, ready };
+  // A tap/click on the object also chooses it (iPad Dwell Control taps, switch access, touch)
+  el.addEventListener("pointerdown", e => { e.preventDefault(); if (state === "showing" && tiles.includes(t)) select(t); });
+  return t;
+}
+function clearTiles(){ tiles.forEach(t => t.el.remove()); tiles = []; }
+function showMessage(text, big){ msg.textContent = text; msg.className = big ? "big" : ""; msg.style.opacity = text ? 1 : 0; }
+
+let showToken = 0;
+function showObjects(objs){
+  if (state === "menu" || state === "celebrating") return;
+  const key = objs.map(o => o.key).join("|");
+  if ((state === "showing" || state === "loading") && key === currentKey) return;
+  clearTiles(); currentKey = key; const token = ++showToken;
+  objs.forEach((o, i) => { const t = makeTile(o); t.el.style.transition = "none"; t.el.style.visibility = "hidden";
+    setTilePos(t, slotCenter(i, objs.length)); tiles.push(t); void t.el.offsetWidth; t.el.style.transition = ""; });
+  state = "loading"; showMessage("");
+  // wait (max 2.5 s) until the photos are loaded, then show both at the same moment
+  Promise.race([Promise.all(tiles.map(t => t.ready)), new Promise(r => setTimeout(r, 2500))]).then(() => {
+    if (token !== showToken || state !== "loading") return;
+    tiles.forEach(t => t.el.style.visibility = "");
+    shownAt = performance.now();
+    counter.className = ""; counter.textContent = "0"; counter.style.display = "block";
+    state = "showing";
+  });
+}
+function later(fn, ms){ celebrateTimers.push(setTimeout(fn, ms)); }
+function select(chosen){
+  state = "celebrating";
+  const secs = Math.max(1, Math.round((performance.now() - shownAt)/1000));
+  chosen.ring.style.strokeDashoffset = 0;
+  tiles.forEach(t => { if (t !== chosen) t.el.classList.add("gone"); });
+  later(() => { tiles.filter(t => t !== chosen).forEach(t => t.el.remove()); tiles = [chosen]; }, 500);
+  // glide the chosen one to the center
+  const c = { x: innerWidth/2, y: innerHeight/2 + 20 };
+  const moving = tiles.length > 1;
+  later(() => { chosen.el.querySelector("svg").style.opacity = 0; setTilePos(chosen, c); }, 250);
+  const arrive = moving ? 1100 : 300;
+  later(() => {
+    chosen.el.classList.add("pulse"); funnySound();
+    launchFireworks(c.x, c.y);
+    counter.className = "win"; counter.textContent = "🎉 " + secs + " s";
+  }, arrive);
+  later(() => { chosen.el.classList.remove("pulse"); chosen.el.classList.add("fade"); }, arrive + 3300);
+  later(() => { clearTiles(); currentKey = ""; counter.style.display = "none"; memo.clear();
+    if (state === "celebrating") { state = "waiting"; showMessage("Say two objects… “dog or cat”"); } }, arrive + 4200);
+}
+function loop(t){
+  const dt = lastT ? Math.min(100, t - lastT) : 16; lastT = t;
+  if (state === "showing") {
+    counter.textContent = Math.floor((t - shownAt)/1000);
+    const need = S.dwell*1000;
+    for (const tl of tiles) {
+      const r = tl.el.getBoundingClientRect(), pad = r.width*0.12;
+      const inside = gaze.x >= r.left-pad && gaze.x <= r.right+pad && gaze.y >= r.top-pad && gaze.y <= r.bottom+pad;
+      if (inside) { tl.dwell += dt; tl.out = 0; }
+      else { tl.out += dt; if (tl.out > 180) tl.dwell = Math.max(0, tl.dwell - dt*3); }  // tolerate brief jitter
+      tl.ring.style.strokeDashoffset = CIRC * (1 - Math.min(1, tl.dwell/need));
+      if (tl.dwell >= need) { select(tl); break; }
+    }
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ---------------- Speech recognition ---------------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+// iPad/iPhone Safari: continuous mode is unreliable, so listen one phrase at a time and restart.
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+let rec = null, listening = false, handled = new Set(), restartTimer = null, autoRestart = false;
+function setMic(cls, text){ $("mic").className = cls; if (text !== undefined) $("heard").textContent = text;
+  $("micBtn").classList.toggle("need", cls !== "on"); }
+function startListening(fromAuto){
+  if (!SR) { setMic("err", "Speech recognition isn't available in this browser. Use Chrome, Edge or Safari, or type below."); return; }
+  clearTimeout(restartTimer);
+  if (rec) { try { rec.onend = null; rec.onerror = null; rec.abort(); } catch(e){} }
+  rec = new SR(); rec.lang = "en-US"; rec.continuous = !IS_IOS; rec.interimResults = true; rec.maxAlternatives = 3;
+  handled.clear(); listening = true; autoRestart = !!fromAuto;
+  rec.onstart = () => setMic("on", IS_IOS ? "Listening… (tap 🎤 if it stops)" : "Listening…");
+  rec.onresult = e => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i], said = res[0].transcript; let objs = null;
+      for (let a = 0; a < res.length && !objs; a++) objs = parsePhrase(res[a].transcript, res.isFinal);
+      $("heard").textContent = "Heard: “" + said.trim() + "”" + (objs ? "  →  " + objs.map(describe).join("  or  ") : "");
+      if (objs) {
+        const key = i + ":" + objs.map(o => o.key).join("|");
+        if (!handled.has(key)) { handled.add(key); showObjects(objs); }
+      } else if (res.isFinal && state === "waiting" && said.trim()) {
+        showMessage("I didn't find objects in “" + said.trim() + "” – try again");
+      }
+    }
+  };
+  rec.onerror = e => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      listening = false;
+      if (autoRestart) setMic("err", "Tap 🎤 to listen again");
+      else setMic("err", "Microphone blocked – allow the microphone (and Siri/Dictation on iPad) for this page, then tap 🎤.");
+    } else if (e.error === "network") { setMic("err", "Speech service needs an internet connection – tap 🎤 to retry."); }
+  };
+  rec.onend = () => {
+    if (listening && state !== "menu") restartTimer = setTimeout(() => startListening(true), 300);
+    else if ($("mic").className !== "err") setMic("", "Not listening – tap 🎤");
+  };
+  try { rec.start(); } catch(e) { setMic("err", "Tap 🎤 to listen"); }
+}
+function stopListening(){ listening = false; clearTimeout(restartTimer);
+  if (rec) { try { rec.onend = null; rec.abort(); } catch(e){} } setMic("", "Not listening"); }
+
+/* ---------------- UI wiring ---------------- */
+function resetBoard(){ celebrateTimers.forEach(clearTimeout); celebrateTimers = []; clearTiles(); currentKey = ""; showToken++; memo.clear();
+  counter.style.display = "none"; }
+function startGame(){
+  readSettings(); initAudio();
+  document.body.classList.toggle("nocursor", S.hideCursor);
+  $("dot").style.display = S.showDot ? "block" : "none";
+  $("menu").style.display = "none";
+  try { const d = document.documentElement;
+    if (!document.fullscreenElement && !document.webkitFullscreenElement && !navigator.standalone) {
+      const p = d.requestFullscreen ? d.requestFullscreen() : (d.webkitRequestFullscreen && d.webkitRequestFullscreen());
+      if (p && p.catch) p.catch(()=>{}); } } catch(e){}
+  resetBoard(); state = "waiting";
+  showMessage("Say two objects… “dog or cat”");
+  startListening();
+}
+function openMenu(){
+  state = "menu"; stopListening(); resetBoard(); showMessage("");
+  document.body.classList.remove("nocursor"); $("menu").style.display = "flex";
+}
+$("start").addEventListener("click", startGame);
+$("menuBtn").addEventListener("click", openMenu);
+/* ---------------- Loading the photo library ---------------- */
+function setLib(text){ $("libStatus").textContent = text; }
+function libDone(where){
+  memo.clear();
+  setLib(LIB.length ? `${LIB.length} photo${LIB.length === 1 ? "" : "s"} loaded ${where}.`
+                    : `No photos found ${where} – built-in pictures will be used.`);
+}
+function encodePath(p){ return p.split("/").map(encodeURIComponent).join("/"); }
+async function loadLibraryFromSite(){
+  setLib("Looking for photos…");
+  // 1) Optional list file: photos/photos.json = ["dog.jpg", "animals/cat.png", ...]
+  try {
+    const r = await fetch("photos/photos.json", { cache:"no-store" });
+    if (r.ok) { const list = await r.json(); LIB = [];
+      list.filter(n => IMG_RE.test(n)).forEach(n => addPhoto(encodePath("photos/" + n), "photos/" + n));
+      return libDone("from photos.json"); }
+  } catch(e) {}
+  // 2) GitHub Pages: ask GitHub which files are in the "photos" folder (and its sub-folders)
+  const host = location.hostname;
+  if (host.endsWith(".github.io")) {
+    const owner = host.split(".")[0];
+    const seg = location.pathname.split("/").filter(Boolean)[0];
+    const repo = seg && !/\.html?$/i.test(seg) ? seg : host;     // user site repo is named owner.github.io
+    try {
+      const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`, { cache:"no-store" });
+      if (r.ok) {
+        const j = await r.json(); LIB = [];
+        const paths = j.tree.filter(x => x.type === "blob" && /^photos\//i.test(x.path) && IMG_RE.test(x.path)).map(x => x.path);
+        paths.forEach(p => addPhoto(encodePath(p), p));
+        try { localStorage.setItem("lookfind_lib", JSON.stringify(paths)); } catch(e) {}
+        return libDone("from your GitHub site");
+      }
+    } catch(e) {}
+    // GitHub busy / offline: use the list remembered from last time
+    try { const paths = JSON.parse(localStorage.getItem("lookfind_lib") || "null");
+      if (paths) { LIB = []; paths.forEach(p => addPhoto(encodePath(p), p)); return libDone("(remembered list)"); } } catch(e) {}
+  }
+  if (!LIB.length) setLib(location.protocol === "file:"
+      ? "Opened from a file: tap “Use photos from this device” and choose your photos folder."
+      : "No photo library found – built-in pictures will be used.");
+}
+const IS_IOS_DEV = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+if (!IS_IOS_DEV) $("libFiles").webkitdirectory = true;          // PC: pick a whole folder
+$("libPick").addEventListener("click", () => $("libFiles").click());
+$("libReload").addEventListener("click", () => loadLibraryFromSite());
+$("libFiles").addEventListener("change", e => {
+  const files = [...e.target.files].filter(f => IMG_RE.test(f.name));
+  libBlobUrls.forEach(u => URL.revokeObjectURL(u)); libBlobUrls = []; LIB = [];
+  files.forEach(f => { const u = URL.createObjectURL(f); libBlobUrls.push(u);
+    const rel = (f.webkitRelativePath || f.name).split("/"); if (rel.length > 1) rel.shift();   // drop the chosen folder's own name
+    addPhoto(u, rel.join("/")); });
+  libDone("from this device");
+  e.target.value = "";
+});
+loadLibraryFromSite();
+
+$("micBtn").addEventListener("click", () => { initAudio(); if (state !== "menu") startListening(false); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && state !== "menu") openMenu(); });
+$("typed").addEventListener("keydown", e => {
+  if (e.key !== "Enter") return; e.stopPropagation();
+  const v = e.target.value; const objs = parsePhrase(v, true);
+  if (objs) { initAudio(); showObjects(objs); e.target.value = ""; e.target.blur(); }
+  else showMessage("I don't know “" + v + "” yet");
+});
+window.addEventListener("resize", () => { sizeCanvas();
+  if (state === "showing") tiles.forEach((t, i) => setTilePos(t, slotCenter(i, tiles.length))); });
+sizeCanvas();
+if (!SR) $("warn").textContent = "This browser has no speech recognition. Open this file in Google Chrome or Microsoft Edge (typing still works).";
+</script>
+</body>
+</html>
